@@ -285,7 +285,7 @@ union SockAddrUnion {
 int OS_CreateLocalIpcFd(const char *bindPath, int backlog)
 {
     int listenSock, servLen;
-    union   SockAddrUnion sa;  
+    struct sockaddr_in sa;  
     int	    tcp = FALSE;
     unsigned long tcp_ia = 0;
     char    *tp;
@@ -305,6 +305,9 @@ int OS_CreateLocalIpcFd(const char *bindPath, int backlog)
       if (!*host || !strcmp(host,"*")) {
 	tcp_ia = htonl(INADDR_ANY);
       } else {
+        fprintf(stdout, "host is: %s\n", host);
+        fprintf(stdout, "port is: %d\n", port);
+        fprintf(stdout, "tcp is: %d\n", tcp);
 	tcp_ia = inet_addr(host);
 	if (tcp_ia == INADDR_NONE) {
 	  struct hostent * hep;
@@ -327,11 +330,11 @@ int OS_CreateLocalIpcFd(const char *bindPath, int backlog)
 	listenSock = socket(AF_INET, SOCK_STREAM, 0);
         if(listenSock >= 0) {
             int flag = 1;
-            if(setsockopt(listenSock, SOL_SOCKET, SO_REUSEADDR,
+            /*if(setsockopt(listenSock, SOL_SOCKET, SO_REUSEADDR,
                           (char *) &flag, sizeof(flag)) < 0) {
                 fprintf(stderr, "Can't set SO_REUSEADDR.\n");
 	        exit(1001);
-	    }
+	    }*/
 	}
     } else {
 	listenSock = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -344,24 +347,25 @@ int OS_CreateLocalIpcFd(const char *bindPath, int backlog)
      * Bind the listening socket.
      */
     if(tcp) {
-	memset((char *) &sa.inetVariant, 0, sizeof(sa.inetVariant));
-	sa.inetVariant.sin_family = AF_INET;
-	sa.inetVariant.sin_addr.s_addr = tcp_ia;
-	sa.inetVariant.sin_port = htons(port);
-	servLen = sizeof(sa.inetVariant);
-    } else {
+	memset((char *) &sa, 0, sizeof(sa));
+	sa.sin_family = AF_INET;
+	sa.sin_addr.s_addr = tcp_ia;
+	sa.sin_port = htons(port);
+	servLen = sizeof(sa);
+    } /*else {
 	unlink(bindPath);
-	if(OS_BuildSockAddrUn(bindPath, &sa.unixVariant, &servLen)) {
+	if(OS_BuildSockAddrUn(bindPath, &sa, &servLen)) {
 	    fprintf(stderr, "Listening socket's path name is too long.\n");
 	    exit(1000);
 	}
-    }
-    if(bind(listenSock, (struct sockaddr *) &sa.unixVariant, servLen) < 0
+    }*/
+    if(bind(listenSock, (struct sockaddr *) &sa, servLen) < 0
        || listen(listenSock, backlog) < 0) {
 	perror("bind/listen");
         exit(errno);
     }
-
+    
+    fprintf(stdout, "sockfd is: %d\n", listenSock);
     return listenSock;
 }
 
@@ -991,6 +995,7 @@ static int ClientAddrOK(struct sockaddr_in *saPtr, const char *clientList)
  */
 static int AcquireLock(int sock, int fail_on_intr)
 {
+return  0;
 #ifdef USE_LOCKING
     do {
         struct flock lock;
@@ -1031,6 +1036,7 @@ static int AcquireLock(int sock, int fail_on_intr)
  */
 static int ReleaseLock(int sock)
 {
+return 0;
 #ifdef USE_LOCKING
     do {
         struct flock lock;
@@ -1154,7 +1160,10 @@ int OS_Accept(int listen_sock, int fail_on_intr, const char *webServerAddrs)
 
     for (;;) {
         if (AcquireLock(listen_sock, fail_on_intr))
+        {
+            fprintf(stdout, "acquirelock failed with errno: %d\n", errno);
             return -1;
+        }
 
         for (;;) {
             do {
@@ -1181,7 +1190,7 @@ int OS_Accept(int listen_sock, int fail_on_intr, const char *webServerAddrs)
                     if (! shutdownPending) {
                         errno = errnoSave;
                     }
-
+                    fprintf(stdout, "accept failed with error: %d\n", errno);
                     return (-1);
                 }
                 errno = 0;
